@@ -58,39 +58,39 @@
       hls.attachMedia(video);
     }
     
-    // Core sync function - dead simple
-    const syncToGlobalTime = () => {
-      const globalTime = (Date.now() / 1000) % 43;
-      video.currentTime = globalTime;
-    };
+    // Simple time-based position
+    const getTargetTime = () => (Date.now() / 1000) % 43;
     
-    // Sync on start
+    // Only sync at critical moments
     video.addEventListener('loadedmetadata', () => {
-      syncToGlobalTime();
+      video.currentTime = getTargetTime();
       video.play();
     });
     
-    // Sync on loop
+    // Resync after each loop
     video.addEventListener('ended', () => {
-      syncToGlobalTime();
+      video.currentTime = getTargetTime();
       video.play();
     });
     
-    // Periodic sync check (every 5 seconds)
-    setInterval(() => {
-      const globalTime = (Date.now() / 1000) % 43;
-      const drift = Math.abs(video.currentTime - globalTime);
-      
-      // Only resync if drift is more than 1 second
-      if (drift > 1 && drift < 42) { // 42 check prevents false positive at loop point
-        syncToGlobalTime();
-      }
-    }, 5000);
+    // Emergency resync if something goes wrong
+    video.addEventListener('pause', () => {
+      video.play();
+    });
+    
+    video.addEventListener('error', () => {
+      setTimeout(() => location.reload(), 3000);
+    });
     
     // Keep screen awake
     if ('wakeLock' in navigator) {
-      navigator.wakeLock.request('screen').catch(() => {});
+      navigator.wakeLock.request('screen');
     }
+    
+    // Ensure settings survive
+    video.muted = true;
+    video.playsInline = true;
+    video.autoplay = true;
   </script>
 </body>
 </html>
