@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>VideoLoop</title>
+
+  <!-- PWA -->
+  <link rel="manifest" href="manifest.json" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-title" content="VideoLoop" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="invisible-man.png" />
+
+  <style>
+    body {
+      margin: 0;
+      background: #000;
+      font-family: sans-serif;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 0.5vw;
+      padding: 1vw;
+    }
+    img {
+      width: 100%;
+      aspect-ratio: 16/9;
+      object-fit: cover;
+      background: black;
+      cursor: pointer;
+    }
+  </style>
+
+  <script>
+    if ('serviceWorker' in navigator) {
+      navigator.serviceWorker.register('/sw.js').catch(console.error);
+    }
+  </script>
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <div class="grid" id="videoGrid"></div>
+
+  <script>
+    const grid = document.getElementById('videoGrid');
+
+    // Video list with correct names and folder paths for thumbnails
+    const videoList = [
+      { id: 1, name: "Darkness of Senses slow", folder: "darknessofsensesslow", thumbnail: "hls/darknessofsensesslow/darknessofsensesslow_thumbnail.jpg" },
+      { id: 2, name: "Darkness of Senses Video 3", folder: "darknessofsensesvideo3", thumbnail: "hls/darknessofsensesvideo3/darknessofsensesvideo3_thumbnail.jpg" },
+      { id: 3, name: "Darkness of Senses Video fast", folder: "darknessofsensesvideofast", thumbnail: "hls/darknessofsensesvideofast/darknessofsensesvideofast_thumbnail.jpg" },
+      { id: 4, name: "Different and Unique Video", folder: "differentanduniquevideo", thumbnail: "hls/differentanduniquevideo/differentanduniquevideo_thumbnail.jpg" },
+      { id: 5, name: "Fake Video", folder: "fakevideo", thumbnail: "hls/fakevideo/fakevideo_thumbnail.jpg" },
+      { id: 6, name: "Filters Video", folder: "filtersvideo", thumbnail: "hls/filtersvideo/filtersvideo_thumbnail.jpg" },
+      { id: 7, name: "Likes Video", folder: "likesvideo", thumbnail: "hls/likesvideo/likesvideo_thumbnail.jpg" },
+      { id: 8, name: "Load Video", folder: "loadvideo", thumbnail: "hls/loadvideo/loadvideo_thumbnail.jpg" },
+      { id: 9, name: "Non-Sence Video", folder: "nonsensevideo", thumbnail: "hls/nonsencevideo/nonsencevideo_thumbnail.jpg" },
+      { id: 10, name: "Push Notification Video", folder: "pushnotificationvideo", thumbnail: "hls/pushnotificationvideo/pushnotificationvideo_thumbnail.jpg" },
+      { id: 11, name: "Spining Screens Video", folder: "spiningscreensvideo", thumbnail: "hls/spiningscreensvideo/spiningscreensvideo_thumbnail.jpg" },
+      { id: 12, name: "The Carousel of Blur Video", folder: "thecarouselofblurvideo", thumbnail: "hls/thecarouselofblurvideo/thecarouselofblurvideo_thumbnail.jpg" },
+      { id: 13, name: "Why Can't I Stop Scrolling Video", folder: "whycantistopscrollingvideo", thumbnail: "hls/whycantistopscrollingvideo/whycantistopscrollingvideo_thumbnail.jpg" }
+    ];
+
+    // Dynamically generate video elements with thumbnail previews
+    videoList.forEach(video => {
+      const videoContainer = document.createElement('div');
+      videoContainer.classList.add('video-container');
+      
+      const videoThumbnail = document.createElement('img');
+      videoThumbnail.src = video.thumbnail;  // Load the thumbnail image
+      videoThumbnail.alt = video.name;
+
+      videoContainer.appendChild(videoThumbnail);
+      grid.appendChild(videoContainer);
+
+      // When thumbnail is clicked, redirect to player.html with the video ID
+      videoThumbnail.addEventListener('click', () => {
+        window.location.href = `player.html?video=${video.id}`;
+      });
+    });
+  </script>
+</body>
+</html>

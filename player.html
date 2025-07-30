@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>VideoLoop Player</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <link rel="apple-touch-icon" href="invisible-man.png" />
+
+  <style>
+    body {
+      margin: 0;
+      background: black;
+      overflow: hidden;
+    }
+    video {
+      width: 100vw;
+      height: 100vh;
+      object-fit: contain;
+    }
+  </style>
+  
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+</head>
+<body>
+  <video id="vid" autoplay muted playsinline></video>
+
+  <script>
+    const video = document.getElementById('vid');
+    const videoID = new URLSearchParams(location.search).get('video') || 1;
+    
+    const videoList = [
+      { id: 1, name: "Darkness of Senses slow", folder: "Darkness of Senses slow" },
+      { id: 2, name: "Darkness of Senses Video 3", folder: "Darkness of Senses Video 3" },
+      { id: 3, name: "Darkness of Senses Video fast", folder: "Darkness of Senses Video fast" },
+      { id: 4, name: "Different and Unique Video", folder: "Different and Unique Video" },
+      { id: 5, name: "Fake Video", folder: "Fake Video" },
+      { id: 6, name: "Filters Video", folder: "Filters Video" },
+      { id: 7, name: "Likes Video", folder: "Likes Video" },
+      { id: 8, name: "Load Video", folder: "Load Video" },
+      { id: 9, name: "Non-Sence Video", folder: "Non-Sence Video" },
+      { id: 10, name: "Push Notification Video", folder: "Push Notification Video" },
+      { id: 11, name: "Spining Screens Video", folder: "Spining Screens Video" },
+      { id: 12, name: "The Carousel of Blur Video", folder: "The Carousel of Blur Video" },
+      { id: 13, name: "Why Can't I Stop Scrolling Video", folder: "Why Can't I Stop Scrolling Video" }
+    ];
+
+    const videoData = videoList.find(v => v.id == videoID);
+    const videoUrl = `hls/${videoData.folder}/${videoData.name}.m3u8`;
+    
+    // Initialize video
+    if (video.canPlayType('application/vnd.apple.mpegurl')) {
+      video.src = videoUrl;
+    } else if (Hls.isSupported()) {
+      const hls = new Hls();
+      hls.loadSource(videoUrl);
+      hls.attachMedia(video);
+    }
+    
+    // Core sync function - dead simple
+    const syncToGlobalTime = () => {
+      const globalTime = (Date.now() / 1000) % 43;
+      video.currentTime = globalTime;
+    };
+    
+    // Sync on start
+    video.addEventListener('loadedmetadata', () => {
+      syncToGlobalTime();
+      video.play();
+    });
+    
+    // Sync on loop
+    video.addEventListener('ended', () => {
+      syncToGlobalTime();
+      video.play();
+    });
+    
+    // Periodic sync check (every 5 seconds)
+    setInterval(() => {
+      const globalTime = (Date.now() / 1000) % 43;
+      const drift = Math.abs(video.currentTime - globalTime);
+      
+      // Only resync if drift is more than 1 second
+      if (drift > 1 && drift < 42) { // 42 check prevents false positive at loop point
+        syncToGlobalTime();
+      }
+    }, 5000);
+    
+    // Keep screen awake
+    if ('wakeLock' in navigator) {
+      navigator.wakeLock.request('screen').catch(() => {});
+    }
+  </script>
+</body>
+</html>
