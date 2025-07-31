@@ -1,96 +1,140 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8" />
-  <title>VideoLoop Player</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="apple-touch-icon" href="invisible-man.png" />
-
+  <meta charset="UTF-8"/>
+  <title>Video Sync Player (Absolute Loop Scheduling)</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
   <style>
-    body {
-      margin: 0;
-      background: black;
-      overflow: hidden;
-    }
-    video {
-      width: 100vw;
-      height: 100vh;
-      object-fit: contain;
+    html, body { margin:0; padding:0; width:100%; height:100%; background:#000; overflow:hidden; }
+    video { width:100vw; height:100vh; object-fit:contain; cursor:pointer; background:#000; }
+    #loading {
+      position:absolute; top:50%; left:50%;
+      transform:translate(-50%,-50%);
+      color:#fff; font-family:-apple-system,sans-serif;
+      font-size:1.5rem; text-align:center;
     }
   </style>
-  
-  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
 </head>
 <body>
-  <video id="vid" autoplay muted playsinline></video>
+  <video id="vid" loop muted playsinline preload="auto"></video>
+  <div id="loading">Loading…</div>
 
+  <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
   <script>
-    const video = document.getElementById('vid');
-    const videoID = new URLSearchParams(location.search).get('video') || 1;
-    
-    const videoList = [
-      { id: 1, name: "Darkness of Senses slow", folder: "Darkness of Senses slow" },
-      { id: 2, name: "Darkness of Senses Video 3", folder: "Darkness of Senses Video 3" },
-      { id: 3, name: "Darkness of Senses Video fast", folder: "Darkness of Senses Video fast" },
-      { id: 4, name: "Different and Unique Video", folder: "Different and Unique Video" },
-      { id: 5, name: "Fake Video", folder: "Fake Video" },
-      { id: 6, name: "Filters Video", folder: "Filters Video" },
-      { id: 7, name: "Likes Video", folder: "Likes Video" },
-      { id: 8, name: "Load Video", folder: "Load Video" },
-      { id: 9, name: "Non-Sence Video", folder: "Non-Sence Video" },
-      { id: 10, name: "Push Notification Video", folder: "Push Notification Video" },
-      { id: 11, name: "Spining Screens Video", folder: "Spining Screens Video" },
-      { id: 12, name: "The Carousel of Blur Video", folder: "The Carousel of Blur Video" },
-      { id: 13, name: "Why Can't I Stop Scrolling Video", folder: "Why Can't I Stop Scrolling Video" }
-    ];
+    const vid       = document.getElementById('vid'),
+          loader    = document.getElementById('loading'),
+          LOOP_SEC  = 43,                     // seconds
+          LOOP_MS   = LOOP_SEC * 1000,
+          PRELOAD   = 3;                      // seconds before target to buffer
 
-    const videoData = videoList.find(v => v.id == videoID);
-    const videoUrl = `hls/${videoData.folder}/${videoData.name}.m3u8`;
-    
-    // Initialize video
-    if (video.canPlayType('application/vnd.apple.mpegurl')) {
-      video.src = videoUrl;
-    } else if (Hls.isSupported()) {
-      const hls = new Hls();
-      hls.loadSource(videoUrl);
-      hls.attachMedia(video);
+    const MAP = {
+      1:"Darkness of Senses slow",2:"Darkness of Senses Video 3",3:"Darkness of Senses Video fast",
+      4:"Different and Unique Video",5:"Fake Video",6:"Filters Video",7:"Likes Video",
+      8:"Load Video",9:"Non-Sence Video",10:"Push Notification Video",
+      11:"Spining Screens Video",12:"The Carousel of Blur Video",
+      13:"Why Can't I Stop Scrolling Video"
+    };
+
+    // 1️⃣ Pick video folder
+    const id     = parseInt(new URLSearchParams(location.search).get('video')) || 1;
+    const folder = MAP[id];
+    if (!folder) {
+      loader.textContent = '⚠️ Invalid video ID';
+      throw new Error('Invalid video ID');
     }
-    
-    // Simple time-based position
-    const getTargetTime = () => (Date.now() / 1000) % 43;
-    
-    // Only sync at critical moments
-    video.addEventListener('loadedmetadata', () => {
-      video.currentTime = getTargetTime();
-      video.play();
-    });
-    
-    // Resync after each loop
-    video.addEventListener('ended', () => {
-      video.currentTime = getTargetTime();
-      video.play();
-    });
-    
-    // Emergency resync if something goes wrong
-    video.addEventListener('pause', () => {
-      video.play();
-    });
-    
-    video.addEventListener('error', () => {
-      setTimeout(() => location.reload(), 3000);
-    });
-    
-    // Keep screen awake
-    if ('wakeLock' in navigator) {
-      navigator.wakeLock.request('screen');
+    loader.textContent = `Loading “${folder}”…`;
+    const manifest = `/hls/${encodeURIComponent(folder)}/${encodeURIComponent(folder)}.m3u8`;
+
+    // 2️⃣ Server‐time helpers
+    async function getServerTimeMs() {
+      const res = await fetch('/time');
+      const { ts } = await res.json();
+      return ts;
     }
-    
-    // Ensure settings survive
-    video.muted = true;
-    video.playsInline = true;
-    video.autoplay = true;
+    async function getTargetSec() {
+      const ms = await getServerTimeMs();
+      return (ms / 1000) % LOOP_SEC;
+    }
+
+    // 3️⃣ Core logic
+    (async () => {
+      // compute the precise target & preload start
+      const target    = await getTargetSec();             // e.g. 12.345 s
+      const preloadAt = Math.max(0, target - PRELOAD);    // e.g. 9.345s
+      let buffered    = 0, started = false;
+
+      // ensure HLS support or fallback
+      const isNative = !!vid.canPlayType('application/vnd.apple.mpegurl');
+      if (!Hls.isSupported() && !isNative) {
+        loader.textContent = '⚠️ HLS not supported';
+        return;
+      }
+
+      if (Hls.isSupported()) {
+        const hls = new Hls({ maxBufferLength:LOOP_SEC+5, autoStartLoad:false });
+        hls.loadSource(manifest);
+        hls.attachMedia(vid);
+
+        hls.on(Hls.Events.MANIFEST_PARSED, () => {
+          // start loading from preloadAt → target
+          hls.startLoad(preloadAt);
+        });
+
+        hls.on(Hls.Events.FRAG_BUFFERED, () => {
+          buffered++;
+          // once 3 fragments are in, we know ~PRELOAD seconds are buffered
+          if (!started && buffered >= 3) {
+            started = true;
+            loader.style.display = 'none';
+            playAndScheduleLoop(target);
+          }
+        });
+      } else {
+        // native HLS fallback: wait PRELOAD seconds after metadata
+        vid.src = manifest;
+        vid.addEventListener('loadedmetadata', () => {
+          setTimeout(async () => {
+            loader.style.display = 'none';
+            const t = await getTargetSec();
+            playAndScheduleLoop(t);
+          }, PRELOAD*1000);
+        });
+      }
+
+      // 4️⃣ Play at “t” and schedule _absolute_ next-loop via server clock
+      async function playAndScheduleLoop(t) {
+        vid.currentTime = t;
+        await vid.play().catch(()=>{});
+
+        // compute next loop boundary on server
+        const serverNow   = await getServerTimeMs();
+        const nextBoundaryMs = Math.ceil(serverNow / LOOP_MS) * LOOP_MS;
+        const delay = nextBoundaryMs - Date.now();
+
+        setTimeout(async function loopSync() {
+          const nt = await getTargetSec();
+          vid.currentTime = nt;
+          vid.play().catch(()=>{});
+          // schedule the following boundary
+          const srv = await getServerTimeMs();
+          const next = Math.ceil(srv / LOOP_MS) * LOOP_MS;
+          setTimeout(loopSync, next - Date.now());
+        }, delay);
+      }
+
+      // 5️⃣ Fullscreen + unmute on first tap
+      let fs=false;
+      vid.addEventListener('click', () => {
+        if (!fs) {
+          document.documentElement.requestFullscreen?.() ||
+            vid.webkitEnterFullscreen?.();
+          fs = true;
+        }
+        vid.muted = false;
+        vid.volume = 1;
+        vid.play().catch(()=>{});
+      });
+    })();
   </script>
 </body>
 </html>
